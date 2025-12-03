@@ -14,6 +14,9 @@ const socketHandler = require("./websockets/socket_handler")
 const server = http.createServer(app)
 socketHandler(server)
 
+const detect = require("./routes/detect")
+app.use("/api/detect", detect)
+
 server.listen(port, () => {
     console.log("Server and websocket running at port " + port)
 })
