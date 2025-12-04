@@ -30,14 +30,14 @@ const roomSocket = (socket) => {
             console.error("Error saving frame:", error)
         }
     })
-    socket.on("sendIp", (data) => {
-        const roomId = data.roomId
-        const ip = data.ip
-        socket.to(roomId).emit("receiveIp", {
-            ip: ip
-        })
-        console.log("IP updated")
-    })
+    // socket.on("sendIp", (data) => {
+    //     const roomId = data.roomId
+    //     const ip = data.ip
+    //     socket.to(roomId).emit("receiveIp", {
+    //         ip: ip
+    //     })
+    //     console.log("IP updated")
+    // })
 }
 
 module.exports = roomSocket
