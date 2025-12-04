@@ -62,7 +62,7 @@ The Python script utilizes computer vision libraries to detect objects and commu
    ```bash
    pip install -r requirements.txt
    ```
-4. Make sure to update the `ESP32_CAM_URL` to the correct address in `main.py` and the device is connected to the same WiFi.
+4. Make sure to update the `ESP32_CAM_URL` and `SERVER_URL` to the correct addresses in `main.py` and the device is connected to the same WiFi.
 
 ## 4. Running the System
 
