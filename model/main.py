@@ -94,10 +94,9 @@ def process_video_stream():
                         detected_objects.append(class_name)
                     _, buffer = cv2.imencode('.jpg', annotated_frame)
                     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-                    base64_string = f"data:image/jpeg;base64,{jpg_as_text}"
                     sio.emit('sendFrame', {
                         'roomId': ROOM_ID,
-                        'frame': base64_string,
+                        'frame': jpg_as_text,
                         'objects': detected_objects
                     })
                     print(f"Sent frame to server. Objects: {detected_objects}")
