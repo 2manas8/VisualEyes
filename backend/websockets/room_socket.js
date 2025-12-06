@@ -15,6 +15,20 @@ const roomSocket = (socket) => {
         const roomId = data.roomId
         const frame = data.frame
         const objects = data.objects
+        let message = "No objects detected"
+        if (objects.length > 5) {
+            message = "A lot of objects detected"
+        } else if (objects.length > 0) {
+            const names = [...objects]
+            let formattedList = ""
+            if (names.length === 1) {
+                formattedList = names[0]
+            } else {
+                const last = names.pop()
+                formattedList = names.join(', ') + " and " + last
+            }
+            message = formattedList.charAt(0).toUpperCase() + formattedList.slice(1) + " detected"
+        }
         try {
             Frame.create({
                 roomId: roomId,
@@ -22,8 +36,8 @@ const roomSocket = (socket) => {
                 objects: objects
             })
             socket.to(roomId).emit("receiveFrame", {
-                frame: frame,
-                objects: objects
+                message: message,
+                frame: frame
             })
             console.log("Frame saved")
         } catch(error) {
