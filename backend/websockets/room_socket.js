@@ -1,4 +1,6 @@
 const Frame = require("../models/frame")
+const fs = require("fs")
+const path = require("path")
 
 const roomSocket = (socket) => {
     socket.on("joinRoom", (roomId) => {
@@ -15,20 +17,46 @@ const roomSocket = (socket) => {
         const roomId = data.roomId
         const frame = data.frame
         const objects = data.objects
-        let message = "No objects detected"
-        if (objects.length > 5) {
+        const audioPath = path.join(__dirname, "../../assets/audio")
+        let message = ""
+        let audioPlaylist = []
+        if(objects.length === 0) {
+            message = "No objects detected"
+            audioPlaylist.push("no_objects.mp3")
+        }
+        if(objects.length > 5) {
             message = "A lot of objects detected"
-        } else if (objects.length > 0) {
+            audioPlaylist.push("a_lot_of_objects.mp3")
+        } else {
             const names = [...objects]
             let formattedList = ""
+            const fileNames = objects.map(name => 
+                name.toLowerCase().replace(/ /g, '_') + ".mp3"
+            )
             if (names.length === 1) {
                 formattedList = names[0]
+                audioPlaylist.push(fileNames[0])
             } else {
-                const last = names.pop()
-                formattedList = names.join(', ') + " and " + last
+                const lastText = names.pop();
+                formattedList = names.join(', ') + " and " + lastText;
+                const lastFile = fileNames.pop();
+                fileNames.forEach(file => audioPlaylist.push(file));
+                audioPlaylist.push("and.mp3");
+                audioPlaylist.push(lastFile);
             }
             message = formattedList.charAt(0).toUpperCase() + formattedList.slice(1) + " detected"
+            audioPlaylist.push("detected.mp3")
         }
+        const audioData = audioPlaylist.map(fileName => {
+            try {
+                const filePath = path.join(audioPath, fileName);
+                const fileBuffer = fs.readFileSync(filePath);
+                return fileBuffer.toString('base64');
+            } catch (err) {
+                console.error(`Error reading audio file ${fileName}:`, err.message);
+                return null; 
+            }
+        }).filter(data => data !== null)
         try {
             Frame.create({
                 roomId: roomId,
@@ -37,7 +65,8 @@ const roomSocket = (socket) => {
             })
             socket.to(roomId).emit("receiveFrame", {
                 message: message,
-                frame: frame
+                frame: frame,
+                audio: audioData
             })
             console.log("Frame saved")
         } catch(error) {
