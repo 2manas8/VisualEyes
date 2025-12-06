@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:frontend/models/frame.dart';
+import 'package:frontend/providers/audio_providers.dart';
 import 'package:frontend/providers/controllers.dart';
 import 'package:frontend/services/frame_services.dart';
+import 'package:frontend/utils/audio.dart';
 import 'package:frontend/utils/colors.dart';
 import 'package:frontend/utils/constants.dart';
 import 'package:frontend/utils/websocket.dart';
@@ -19,6 +21,7 @@ class DetectPage extends StatefulWidget {
 
 class DetectPageState extends State<DetectPage> {
   Frame? frame;
+  Audio player = Audio();
 
   @override
   void initState() {
@@ -27,6 +30,7 @@ class DetectPageState extends State<DetectPage> {
     Websocket.socketConnect();
     Websocket.joinRoom('1');
     Websocket.receiveFrame((newFrame) {
+      player.playAudioSequence(AudioProviders.audio);
       setState(() {
         frame = newFrame;
       });

@@ -1,4 +1,5 @@
 import 'package:frontend/models/frame.dart';
+import 'package:frontend/providers/audio_providers.dart';
 import 'package:frontend/utils/constants.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -24,6 +25,7 @@ class Websocket {
   static void receiveFrame(Function(Frame) updateFrame) {
     socket.on('receiveFrame', (data) {
       final dynamic jsonData = Map<String, dynamic>.from(data);
+      AudioProviders.audio = jsonData['audio'];
       Frame frame = Frame.fromJson(jsonData);
       updateFrame(frame);
     });
