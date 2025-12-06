@@ -16,3 +16,4 @@ const String descriptionText = 'Description';
 // API constants
 const String apiBaseUrl = 'https://visualeyes.onrender.com/api';
 const String latestFrameEndpoint = '/detect/latest_frame';
+const String socketUrl = 'https://visualeyes.onrender.com';

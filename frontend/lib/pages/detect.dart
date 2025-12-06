@@ -5,6 +5,7 @@ import 'package:frontend/providers/controllers.dart';
 import 'package:frontend/services/frame_services.dart';
 import 'package:frontend/utils/colors.dart';
 import 'package:frontend/utils/constants.dart';
+import 'package:frontend/utils/websocket.dart';
 import 'package:frontend/widgets/action_button.dart';
 import 'package:frontend/widgets/custom_title.dart';
 import 'package:frontend/widgets/loading.dart';
@@ -23,6 +24,13 @@ class DetectPageState extends State<DetectPage> {
   void initState() {
     super.initState();
     fetchFrame();
+    Websocket.socketConnect();
+    Websocket.joinRoom('1');
+    Websocket.receiveFrame((newFrame) {
+      setState(() {
+        frame = newFrame;
+      });
+    });
   }
 
   @override

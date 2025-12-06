@@ -8,8 +8,7 @@ class FrameServices {
     try {
       Response res = await get(Uri.parse(apiBaseUrl + latestFrameEndpoint).replace(queryParameters: {'roomId': roomId}));
       if(res.statusCode == 200) {
-        final dynamic jsonData = (json.decode(res.body));
-        // print(jsonData);
+        final dynamic jsonData = json.decode(res.body);
         return Frame.fromJson(jsonData);
       }
     } catch(error) {
