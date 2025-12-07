@@ -4,53 +4,56 @@ import sys
 import time
 import socketio
 import base64
-# import threading
+import requests
 
-ESP32_CAM_URL = "http://192.168.1.6:81/stream"
+ESP32_CAM_URL = ""
+CAM_AVAILABLE = 0
+
 YOLO_MODEL_PATH = "yolov12/yolo12n.onnx"
 CONFIDENCE_THRESHOLD = 0.40
 
 SERVER_URL = "https://visualeyes.onrender.com"
+IP_FETCH_ENDPOINT = "/api/stream/fetch_ip"
 ROOM_ID = "1"
 SEND_INTERVAL = 5
 
 sio = socketio.Client()
 
-# stream_ready = threading.Event()
-
 print(f"Loading YOLO model: {YOLO_MODEL_PATH}...")
 try:
     model = YOLO(YOLO_MODEL_PATH)
-    print("YOLO model loaded successfully.")
 except Exception as e:
     print(f"Error loading YOLO model: {e}")
-    print("Please ensure you have run 'pip install ultralytics'.")
     sys.exit(1)
 
 @sio.event
 def connect():
     print("Connected to WebSocket Server")
     sio.emit('joinRoom', ROOM_ID)
-    print(f"Joined room {ROOM_ID}, waiting for ESP32 IP...")
 
 @sio.event
 def disconnect():
     print("Disconnected from WebSocket Server")
 
-# @sio.event
-# def receiveIp(data):
-#     global ESP32_CAM_URL
-#     ip_address = ""
-#     if isinstance(data, dict):
-#         ip_address = data.get('ip')
-#     else:
-#         ip_address = data
-#     if ip_address:
-#         print(f"\n[WebSocket] Received ESP32 IP: {ip_address}")
-#         ESP32_CAM_URL = f"http://{ip_address}:81/stream"
-#         stream_ready.set()
-#     else:
-#         print("[WebSocket] Received empty IP address!")
+def fetch_stream_url():
+    global ESP32_CAM_URL, CAM_AVAILABLE
+
+    try:
+        params = {'roomId': ROOM_ID}
+        response = requests.get(SERVER_URL + IP_FETCH_ENDPOINT, params=params)
+        
+        if response.status_code == 200:
+            data = response.json()
+            ip_address = data.get("ip")
+
+            ESP32_CAM_URL = "http://" + ip_address + ":81/stream"
+            CAM_AVAILABLE = 1
+        else:
+            print(f"Error: Server returned status code {response.status_code}")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network Error: {e}")
+        return None
 
 def process_video_stream():
     try:
@@ -59,13 +62,14 @@ def process_video_stream():
     except Exception as e:
         print(f"Could not connect to WebSocket server: {e}")
         return
-    # print("Waiting for camera source...")
-    # stream_ready.wait()
+    
     print(f"Attempting to connect to video stream at: {ESP32_CAM_URL}")
     cap = cv2.VideoCapture(ESP32_CAM_URL)
+
     if not cap.isOpened():
         print("Error: Cannot open video stream.")
         return
+    
     print("Connection successful. Starting object detection loop. Press 'q' to exit.")
     frame_count = 0
     start_time = time.time()
@@ -111,9 +115,14 @@ def process_video_stream():
         cv2.imshow("ESP32-CAM YOLOv8 Detection", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+    
     cap.release()
     cv2.destroyAllWindows()
-    # sio.disconnect()
 
 if __name__ == "__main__":
+    while(CAM_AVAILABLE == 0):
+        fetch_stream_url()
+        if CAM_AVAILABLE == 0:
+            time.sleep(2)
+    
     process_video_stream()
