@@ -17,6 +17,9 @@ socketHandler(server)
 const detect = require("./routes/detect")
 app.use("/api/detect", detect)
 
+const wifi = require("./routes/stream")
+app.use("/api/stream", wifi)
+
 server.listen(port, () => {
     console.log("Server and websocket running at port " + port)
 })
