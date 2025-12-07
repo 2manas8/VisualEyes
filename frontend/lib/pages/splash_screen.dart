@@ -22,7 +22,7 @@ class SplashScreenPageState extends State<SplashScreenPage> {
       () async {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: detectRoute())
+          MaterialPageRoute(builder: homeRoute())
         );
       }
     );

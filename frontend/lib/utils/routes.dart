@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/pages/detect.dart';
+import 'package:frontend/pages/home.dart';
 
-WidgetBuilder detectRoute() {
-  return ((context) => const DetectPage());
+WidgetBuilder homeRoute() {
+  return ((context) => const HomePage());
 }

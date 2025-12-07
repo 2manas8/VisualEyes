@@ -15,7 +15,7 @@ class CustomTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(defaultPadding),
       child: Text(
-        detectText,
+        title,
         style: TextStyle(
           color: AppColors.primaryColor,
           fontWeight: FontWeight.bold,
