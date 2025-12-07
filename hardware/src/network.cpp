@@ -9,7 +9,7 @@ void sendLocalIPToServer(String localIP) {
     http.begin("https://visualeyes.onrender.com/api/stream/save_ip");
     http.addHeader("Content-Type", "application/json");
     
-    String jsonPayload = "{\"ip\":\"" + localIP + "\"}";
+    String jsonPayload = "{\"roomId\":\"1\", \"ip\":\"" + localIP + "\"}";
     
     int httpResponseCode = http.POST(jsonPayload);
     
