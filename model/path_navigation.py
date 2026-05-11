@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 from collections import deque
-from generate_audio_1 import speak
 
 # ---------------- CONFIG ----------------
 
@@ -10,14 +9,17 @@ MODEL_PATH = "yolov8n-seg.pt"
 
 CONFIDENCE_THRESHOLD = 0.4
 
-# Object area thresholds
-AREA_THRESHOLD = 12000
+# Ignore tiny/far obstacles
+AREA_THRESHOLD = 8000
+
+# Very close obstacle threshold
 CLOSE_AREA_THRESHOLD = 45000
 
-# Center stop threshold
+# Center blockage threshold
 CENTER_STOP_THRESHOLD = 15000
 
-# Only these objects are considered obstacles
+# ---------------- OBSTACLE CLASSES ----------------
+
 OBSTACLE_CLASSES = [
     "person",
     "bicycle",
@@ -35,8 +37,10 @@ OBSTACLE_CLASSES = [
     "couch"
 ]
 
-# Object priorities
+# ---------------- OBJECT PRIORITY ----------------
+
 OBJECT_PRIORITY = {
+
     "person": 5,
     "car": 5,
     "bus": 5,
@@ -54,20 +58,23 @@ OBJECT_PRIORITY = {
     "dining table": 3,
 
     "dog": 2,
+
     "potted plant": 1
 }
 
-# Direction smoothing
+# ---------------- DIRECTION SMOOTHING ----------------
+
 direction_history = deque(maxlen=5)
 
 # ---------------- LOAD MODEL ----------------
 
-print("Loading segmentation model...")
+print("Loading YOLOv8 Segmentation Model...")
+
 model = YOLO(MODEL_PATH)
 
 print("Model loaded successfully.")
 
-# ---------------- MAIN FUNCTION ----------------
+# ---------------- MAIN NAVIGATION FUNCTION ----------------
 
 def process_navigation(frame):
 
@@ -75,13 +82,13 @@ def process_navigation(frame):
 
     h, w, _ = frame.shape
 
-    # Divide frame into 3 regions
+    # Divide frame into 3 navigation regions
     third = w // 3
 
-    # Only lower walking region matters
+    # Analyze only lower walking region
     BOTTOM_REGION_START = int(h * 0.6)
 
-    # Risks
+    # Risk values
     left_risk = 0
     center_risk = 0
     right_risk = 0
@@ -89,11 +96,7 @@ def process_navigation(frame):
     close_object_detected = False
     very_close_center = False
 
-    # Track main obstacle
-    main_object = None
-    main_object_area = 0
-
-    # ---------------- PREDICTION ----------------
+    # ---------------- MODEL PREDICTION ----------------
 
     results = model.predict(
         source=frame,
@@ -106,50 +109,62 @@ def process_navigation(frame):
     if results[0].masks is not None:
 
         masks = results[0].masks.data.cpu().numpy()
+
         boxes = results[0].boxes.xyxy.cpu().numpy()
 
         for i, mask in enumerate(masks):
 
             x1, y1, x2, y2 = boxes[i]
 
-            x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
+            x1, y1, x2, y2 = map(
+                int,
+                [x1, y1, x2, y2]
+            )
 
             box_width = x2 - x1
+
             box_height = y2 - y1
 
-            object_area = box_width * box_height
+            object_area = (
+                box_width * box_height
+            )
 
-            class_id = int(results[0].boxes.cls[i])
+            class_id = int(
+                results[0].boxes.cls[i]
+            )
+
             class_name = model.names[class_id]
 
-            confidence = float(results[0].boxes.conf[i])
+            confidence = float(
+                results[0].boxes.conf[i]
+            )
 
-            # Ignore non-obstacle objects
+            # ---------------- FILTER OBJECTS ----------------
+
             if class_name not in OBSTACLE_CLASSES:
+
                 continue
 
             # Ignore very small/far objects
             if object_area < AREA_THRESHOLD:
+
                 continue
 
             detected_objects.append(class_name)
 
             close_object_detected = True
 
-            # Track nearest/largest obstacle
-            if object_area > main_object_area:
-                main_object_area = object_area
-                main_object = class_name
+            # Object priority
+            priority = OBJECT_PRIORITY.get(
+                class_name,
+                1
+            )
 
-            # Priority weight
-            priority = OBJECT_PRIORITY.get(class_name, 1)
-
-            # ---------------- DRAWING ----------------
+            # ---------------- DRAW BOUNDING BOX ----------------
 
             label = (
                 f"{class_name} "
-                f"{confidence:.2f} "
-                f"| Area:{object_area}"
+                f"{confidence:.2f}"
             )
 
             cv2.rectangle(
@@ -160,17 +175,25 @@ def process_navigation(frame):
                 2
             )
 
-            (text_w, text_h), baseline = cv2.getTextSize(
-                label,
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                2
+            (text_w, text_h), baseline = (
+                cv2.getTextSize(
+                    label,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    2
+                )
             )
 
             cv2.rectangle(
                 frame,
-                (x1, max(0, y1 - text_h - 8)),
-                (x1 + text_w, y1),
+                (
+                    x1,
+                    max(0, y1 - text_h - 8)
+                ),
+                (
+                    x1 + text_w,
+                    y1
+                ),
                 (0, 255, 0),
                 -1
             )
@@ -185,33 +208,58 @@ def process_navigation(frame):
                 2
             )
 
-            # ---------------- SEGMENTATION ----------------
+            # ---------------- SEGMENTATION ANALYSIS ----------------
 
-            mask_resized = cv2.resize(mask, (w, h))
+            mask_resized = cv2.resize(
+                mask,
+                (w, h)
+            )
 
-            # Use only lower walking region
-            bottom_mask = mask_resized[BOTTOM_REGION_START:, :]
+            # Lower walking region only
+            bottom_mask = mask_resized[
+                BOTTOM_REGION_START:, :
+            ]
 
-            # Split regions
+            # Split into left/center/right
             left_region = bottom_mask[:, :third]
-            center_region = bottom_mask[:, third:2 * third]
-            right_region = bottom_mask[:, 2 * third:]
+
+            center_region = bottom_mask[
+                :,
+                third:2 * third
+            ]
+
+            right_region = bottom_mask[
+                :,
+                2 * third:
+            ]
 
             # Count occupied pixels
             left_pixels = np.sum(left_region)
+
             center_pixels = np.sum(center_region)
+
             right_pixels = np.sum(right_region)
 
             # Weighted risks
-            left_risk += left_pixels * priority
-            center_risk += center_pixels * priority
-            right_risk += right_pixels * priority
+            left_risk += (
+                left_pixels * priority
+            )
 
-            # Emergency stop condition
+            center_risk += (
+                center_pixels * priority
+            )
+
+            right_risk += (
+                right_pixels * priority
+            )
+
+            # ---------------- EMERGENCY STOP ----------------
+
             if (
                 object_area > CLOSE_AREA_THRESHOLD
                 and center_pixels > CENTER_STOP_THRESHOLD
             ):
+
                 very_close_center = True
 
     # ---------------- DECISION LOGIC ----------------
@@ -242,7 +290,7 @@ def process_navigation(frame):
 
             direction = "GO STRAIGHT"
 
-    # ---------------- SMOOTHING ----------------
+    # ---------------- DIRECTION SMOOTHING ----------------
 
     direction_history.append(direction)
 
@@ -251,34 +299,21 @@ def process_navigation(frame):
         key=direction_history.count
     )
 
-    # ---------------- AUDIO MESSAGE ----------------
+    # Remove duplicate object names
+    detected_objects = list(
+        set(detected_objects)
+    )
 
-    if main_object is not None:
+    # ---------------- DEBUG PRINT ----------------
 
-        if direction == "STOP":
-            audio_message = f"{main_object} ahead. Stop."
-
-        elif direction == "MOVE LEFT":
-            audio_message = f"{main_object} ahead. Move left."
-
-        elif direction == "MOVE RIGHT":
-            audio_message = f"{main_object} ahead. Move right."
-
-        else:
-            audio_message = f"{main_object} detected. Go straight."
-
-    else:
-
-        audio_message = "Path is clear."
-
-    print("Decision:", audio_message)
-
-    # Speak audio
-    speak(audio_message)
+    print(
+        f"Direction: {direction} | "
+        f"Objects: {detected_objects}"
+    )
 
     # ---------------- VISUALIZATION ----------------
 
-    # Region lines
+    # Left/Center/Right lines
     cv2.line(
         frame,
         (third, 0),
@@ -295,7 +330,7 @@ def process_navigation(frame):
         2
     )
 
-    # Bottom navigation region
+    # Bottom navigation line
     cv2.line(
         frame,
         (0, BOTTOM_REGION_START),
@@ -304,7 +339,7 @@ def process_navigation(frame):
         2
     )
 
-    # Show risks
+    # Risk display
     cv2.putText(
         frame,
         f"L:{int(left_risk)}",
@@ -338,7 +373,7 @@ def process_navigation(frame):
     # Final direction
     cv2.putText(
         frame,
-        audio_message,
+        f"Direction: {direction}",
         (50, 50),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.9,
@@ -346,9 +381,10 @@ def process_navigation(frame):
         3
     )
 
+    # ---------------- RETURN ----------------
+
     return (
         frame,
         direction,
-        audio_message,
         detected_objects
     )

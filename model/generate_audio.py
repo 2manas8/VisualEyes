@@ -13,11 +13,17 @@ coco_classes = [
     "hair drier", "toothbrush"
 ]
 
+
+
 system_phrases = [
-    "no objects", 
-    "a lot of objects", 
-    "and", 
-    "detected"
+    "no objects",
+    "a lot of objects",
+    "and",
+    "detected",
+    "move left",
+    "move right",
+    "stop",
+    "go straight"
 ]
 
 all_inputs = coco_classes + system_phrases
@@ -32,7 +38,16 @@ for phrase in all_inputs:
     tts = gTTS(text=phrase, lang='en', slow=False)
     filename = f"{phrase.replace(' ', '_')}.mp3"
     save_path = os.path.join(save_dir, filename)
-    tts.save(save_path)
-    print(f"Saved: {filename}")
+    # Skip if file already exists
+    if os.path.exists(save_path):
+
+        print(f"Already exists: {filename}")
+
+    else:
+
+        # Generate and save
+        tts.save(save_path)
+
+        print(f"Generated: {filename}")
 
 print("Done! All audio files are ready.")

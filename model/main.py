@@ -13,26 +13,31 @@ ESP32_CAM_URL = ""
 CAM_AVAILABLE = 0
 
 SERVER_URL = "https://visualeyes.onrender.com"
+
 IP_FETCH_ENDPOINT = "/api/stream/fetch_ip"
 
 ROOM_ID = "1"
 
-# Send frame every N seconds
-SEND_INTERVAL = 5
+# Send updates faster for navigation
+SEND_INTERVAL = 1
 
 # ---------------- SOCKET IO ----------------
 
 sio = socketio.Client()
 
+# ---------------- SOCKET EVENTS ----------------
 
 @sio.event
 def connect():
+
     print("Connected to WebSocket Server")
+
     sio.emit('joinRoom', ROOM_ID)
 
 
 @sio.event
 def disconnect():
+
     print("Disconnected from WebSocket Server")
 
 
@@ -70,7 +75,7 @@ def fetch_stream_url():
 
             print(
                 f"Error: Server returned "
-                f"{response.status_code}"
+                f"status code {response.status_code}"
             )
 
     except requests.exceptions.RequestException as e:
@@ -87,19 +92,26 @@ def process_video_stream():
     # Connect websocket
     try:
 
-        print(f"Connecting to server at {SERVER_URL}...")
+        print(
+            f"Connecting to server at "
+            f"{SERVER_URL}..."
+        )
 
         sio.connect(SERVER_URL)
 
     except Exception as e:
 
-        print(f"Could not connect to WebSocket server: {e}")
+        print(
+            f"Could not connect to "
+            f"WebSocket server: {e}"
+        )
 
         return
 
-    # Open camera stream
+    # Open ESP32 stream
     print(
-        f"Attempting to connect to stream: "
+        f"Attempting to connect to "
+        f"video stream at: "
         f"{ESP32_CAM_URL}"
     )
 
@@ -112,11 +124,13 @@ def process_video_stream():
         return
 
     print(
-        "Connection successful. "
+        "Connection successful.\n"
+        "Starting navigation system.\n"
         "Press 'q' to exit."
     )
 
     frame_count = 0
+
     start_time = time.time()
 
     last_ws_send_time = 0
@@ -130,32 +144,35 @@ def process_video_stream():
         if not ret:
 
             print(
-                "Failed to read frame. "
-                "Reconnecting..."
+                "Failed to read frame "
+                "from stream. Reconnecting..."
             )
 
             cap.release()
 
             time.sleep(2)
 
-            cap = cv2.VideoCapture(ESP32_CAM_URL)
+            cap = cv2.VideoCapture(
+                ESP32_CAM_URL
+            )
 
             if not cap.isOpened():
 
-                print("Reconnection failed.")
+                print(
+                    "Reconnection failed. Exiting."
+                )
 
                 break
 
             continue
 
-        # ---------------- PROCESS NAVIGATION ----------------
+        # ---------------- NAVIGATION PROCESS ----------------
 
         try:
 
             (
                 annotated_frame,
                 direction,
-                audio_message,
                 detected_objects
             ) = process_navigation(frame)
 
@@ -169,7 +186,9 @@ def process_video_stream():
 
         frame_count += 1
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = (
+            time.time() - start_time
+        )
 
         fps = (
             frame_count / elapsed_time
@@ -184,6 +203,18 @@ def process_video_stream():
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
             (0, 255, 0),
+            2
+        )
+
+        # ---------------- DISPLAY DIRECTION ----------------
+
+        cv2.putText(
+            annotated_frame,
+            f"Direction: {direction}",
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
             2
         )
 
@@ -206,11 +237,12 @@ def process_video_stream():
                         annotated_frame
                     )
 
-                    jpg_as_text = base64.b64encode(
-                        buffer
-                    ).decode('utf-8')
+                    jpg_as_text = (
+                        base64.b64encode(buffer)
+                        .decode('utf-8')
+                    )
 
-                    # Send data
+                    # Send data to frontend
                     sio.emit('sendFrame', {
 
                         'roomId': ROOM_ID,
@@ -219,33 +251,24 @@ def process_video_stream():
 
                         'objects': detected_objects,
 
-                        'direction': direction,
-
-                        'audio_message': audio_message
+                        'direction': direction
                     })
 
                     print(
                         f"Sent frame | "
-                        f"Objects: {detected_objects}"
+                        f"Objects: {detected_objects} | "
+                        f"Direction: {direction}"
                     )
 
                     last_ws_send_time = current_time
 
                 except Exception as e:
 
-                    print(f"WebSocket Error: {e}")
+                    print(
+                        f"WebSocket Error: {e}"
+                    )
 
-        # ---------------- DISPLAY ----------------
-
-        cv2.putText(
-            annotated_frame,
-            audio_message,
-            (20, 80),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2
-        )
+        # ---------------- DISPLAY WINDOW ----------------
 
         cv2.imshow(
             "VisualEyes Navigation System",
