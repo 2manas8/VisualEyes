@@ -23,7 +23,6 @@ CENTER_STOP_THRESHOLD = 15000
 # If center occupancy below this → GO STRAIGHT
 CENTER_OCCUPANCY_THRESHOLD = 0.25
 
-
 # =====================================================
 # OBSTACLE CLASSES
 # =====================================================
@@ -119,10 +118,13 @@ def process_navigation(frame):
     center_risk = 0
     right_risk = 0
 
+    # RAW CENTER PIXELS
+    raw_center_pixels = 0
+
     close_object_detected = False
     very_close_center = False
 
-    # Total center pixels
+    # Total pixels in center corridor
     total_center_pixels = (
         (h - BOTTOM_REGION_START)
         * center_width
@@ -298,6 +300,12 @@ def process_navigation(frame):
             right_pixels = np.sum(right_region)
 
             # =================================================
+            # TRUE CENTER OCCUPANCY
+            # =================================================
+
+            raw_center_pixels += center_pixels
+
+            # =================================================
             # RISK CALCULATION
             # =================================================
 
@@ -325,22 +333,14 @@ def process_navigation(frame):
                 very_close_center = True
 
     # =================================================
-    # CENTER OCCUPANCY RATIO
+    # TRUE CENTER OCCUPANCY RATIO
     # =================================================
 
-        # Add these before the detection loop
-    raw_center_pixels = 0
-
-    # Inside the loop, after calculating center_pixels:
-    raw_center_pixels += center_pixels
-
-    # After the loop, calculate the true occupancy ratio:
     true_center_occupancy = (
         raw_center_pixels / total_center_pixels
         if total_center_pixels > 0
         else 0
     )
-
 
     # =================================================
     # DECISION LOGIC
@@ -355,7 +355,7 @@ def process_navigation(frame):
     #     direction = "STOP"
 
     # Center mostly clear
-    elif (
+    if (
         true_center_occupancy
         < CENTER_OCCUPANCY_THRESHOLD
     ):
@@ -431,7 +431,7 @@ def process_navigation(frame):
         2
     )
 
-    # Risks
+    # Risk display
     cv2.putText(
         frame,
         f"L:{int(left_risk)}",
@@ -466,7 +466,7 @@ def process_navigation(frame):
     cv2.putText(
         frame,
         f"Direction: {direction}",
-        (50, 50),
+        (20, 80),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.9,
         (0, 0, 255),
