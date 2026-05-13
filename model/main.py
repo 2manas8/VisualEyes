@@ -1,128 +1,304 @@
 import cv2
-from ultralytics import YOLO
 import sys
 import time
 import socketio
 import base64
 import requests
 
+from path_navigation import process_navigation
+
+# ---------------- CONFIG ----------------
+
 ESP32_CAM_URL = ""
 CAM_AVAILABLE = 0
 
-YOLO_MODEL_PATH = "yolov12/yolo12n.onnx"
-CONFIDENCE_THRESHOLD = 0.40
-
 SERVER_URL = "https://visualeyes.onrender.com"
+
 IP_FETCH_ENDPOINT = "/api/stream/fetch_ip"
+
 ROOM_ID = "1"
-SEND_INTERVAL = 5
+
+# Send updates faster for navigation
+SEND_INTERVAL = 1
+
+# ---------------- SOCKET IO ----------------
 
 sio = socketio.Client()
 
-print(f"Loading YOLO model: {YOLO_MODEL_PATH}...")
-try:
-    model = YOLO(YOLO_MODEL_PATH)
-except Exception as e:
-    print(f"Error loading YOLO model: {e}")
-    sys.exit(1)
+# ---------------- SOCKET EVENTS ----------------
 
 @sio.event
 def connect():
+
     print("Connected to WebSocket Server")
+
     sio.emit('joinRoom', ROOM_ID)
+
 
 @sio.event
 def disconnect():
+
     print("Disconnected from WebSocket Server")
 
+
+# ---------------- FETCH CAMERA URL ----------------
+
 def fetch_stream_url():
-    global ESP32_CAM_URL, CAM_AVAILABLE
+
+    global ESP32_CAM_URL
+    global CAM_AVAILABLE
 
     try:
+
         params = {'roomId': ROOM_ID}
-        response = requests.get(SERVER_URL + IP_FETCH_ENDPOINT, params=params)
-        
+
+        response = requests.get(
+            SERVER_URL + IP_FETCH_ENDPOINT,
+            params=params
+        )
+
         if response.status_code == 200:
+
             data = response.json()
+
             ip_address = data.get("ip")
 
-            ESP32_CAM_URL = "http://" + ip_address + ":81/stream"
+            ESP32_CAM_URL = (
+                "http://" + ip_address + ":81/stream"
+            )
+
             CAM_AVAILABLE = 1
+
+            print(f"Camera URL: {ESP32_CAM_URL}")
+
         else:
-            print(f"Error: Server returned status code {response.status_code}")
+
+            print(
+                f"Error: Server returned "
+                f"status code {response.status_code}"
+            )
 
     except requests.exceptions.RequestException as e:
+
         print(f"Network Error: {e}")
+
         return None
 
+
+# ---------------- MAIN VIDEO PROCESS ----------------
+
 def process_video_stream():
+
+    # Connect websocket
     try:
-        print(f"Connecting to server at {SERVER_URL}...")
+
+        print(
+            f"Connecting to server at "
+            f"{SERVER_URL}..."
+        )
+
         sio.connect(SERVER_URL)
+
     except Exception as e:
-        print(f"Could not connect to WebSocket server: {e}")
+
+        print(
+            f"Could not connect to "
+            f"WebSocket server: {e}"
+        )
+
         return
-    
-    print(f"Attempting to connect to video stream at: {ESP32_CAM_URL}")
+
+    # Open ESP32 stream
+    print(
+        f"Attempting to connect to "
+        f"video stream at: "
+        f"{ESP32_CAM_URL}"
+    )
+
     cap = cv2.VideoCapture(ESP32_CAM_URL)
 
     if not cap.isOpened():
+
         print("Error: Cannot open video stream.")
+
         return
-    
-    print("Connection successful. Starting object detection loop. Press 'q' to exit.")
+
+    print(
+        "Connection successful.\n"
+        "Starting navigation system.\n"
+        "Press 'q' to exit."
+    )
+
     frame_count = 0
+
     start_time = time.time()
+
     last_ws_send_time = 0
+
+    # ---------------- MAIN LOOP ----------------
+
     while True:
+
         ret, frame = cap.read()
+
         if not ret:
-            print("Failed to read frame from stream. Reconnecting...")
+
+            print(
+                "Failed to read frame "
+                "from stream. Reconnecting..."
+            )
+
             cap.release()
+
             time.sleep(2)
-            cap = cv2.VideoCapture(ESP32_CAM_URL)
+
+            cap = cv2.VideoCapture(
+                ESP32_CAM_URL
+            )
+
             if not cap.isOpened():
-                print("Reconnection failed. Exiting.")
+
+                print(
+                    "Reconnection failed. Exiting."
+                )
+
                 break
+
             continue
-        results = model.predict(source=frame, conf=CONFIDENCE_THRESHOLD, verbose=False)
-        annotated_frame = results[0].plot()
-        current_time = time.time()
-        if current_time - last_ws_send_time >= SEND_INTERVAL:
-            if sio.connected:
-                try:
-                    detected_objects = []
-                    for box in results[0].boxes:
-                        class_id = int(box.cls[0])
-                        class_name = model.names[class_id]
-                        detected_objects.append(class_name)
-                    _, buffer = cv2.imencode('.jpg', annotated_frame)
-                    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-                    sio.emit('sendFrame', {
-                        'roomId': ROOM_ID,
-                        'frame': jpg_as_text,
-                        'objects': detected_objects
-                    })
-                    print(f"Sent frame to server. Objects: {detected_objects}")
-                    last_ws_send_time = current_time
-                except Exception as e:
-                    print(f"Error sending frame: {e}")
+
+        # ---------------- NAVIGATION PROCESS ----------------
+
+        try:
+
+            (
+                annotated_frame,
+                direction,
+                detected_objects
+            ) = process_navigation(frame)
+
+        except Exception as e:
+
+            print(f"Navigation Error: {e}")
+
+            continue
+
+        # ---------------- FPS ----------------
+
         frame_count += 1
-        elapsed_time = time.time() - start_time
-        fps = frame_count / elapsed_time if elapsed_time > 0 else 0
-        cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.imshow("ESP32-CAM YOLOv8 Detection", annotated_frame)
+
+        elapsed_time = (
+            time.time() - start_time
+        )
+
+        fps = (
+            frame_count / elapsed_time
+            if elapsed_time > 0
+            else 0
+        )
+
+        cv2.putText(
+            annotated_frame,
+            f"FPS: {fps:.2f}",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2
+        )
+
+        # ---------------- DISPLAY DIRECTION ----------------
+
+        cv2.putText(
+            annotated_frame,
+            f"Direction: {direction}",
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 255),
+            2
+        )
+
+        # ---------------- WEBSOCKET SEND ----------------
+
+        current_time = time.time()
+
+        if (
+            current_time - last_ws_send_time
+            >= SEND_INTERVAL
+        ):
+
+            if sio.connected:
+
+                try:
+
+                    # Convert frame to jpg
+                    _, buffer = cv2.imencode(
+                        '.jpg',
+                        annotated_frame
+                    )
+
+                    jpg_as_text = (
+                        base64.b64encode(buffer)
+                        .decode('utf-8')
+                    )
+
+                    # Send data to frontend
+                    sio.emit('sendFrame', {
+
+                        'roomId': ROOM_ID,
+
+                        'frame': jpg_as_text,
+
+                        'objects': detected_objects,
+
+                        'direction': direction
+                    })
+
+                    print(
+                        f"Sent frame | "
+                        f"Objects: {detected_objects} | "
+                        f"Direction: {direction}"
+                    )
+
+                    last_ws_send_time = current_time
+
+                except Exception as e:
+
+                    print(
+                        f"WebSocket Error: {e}"
+                    )
+
+        # ---------------- DISPLAY WINDOW ----------------
+
+        cv2.imshow(
+            "VisualEyes Navigation System",
+            annotated_frame
+        )
+
+        # Exit key
         if cv2.waitKey(1) & 0xFF == ord('q'):
+
             break
-    
+
+    # ---------------- CLEANUP ----------------
+
     cap.release()
+
     cv2.destroyAllWindows()
 
+    sio.disconnect()
+
+
+# ---------------- ENTRY POINT ----------------
+
 if __name__ == "__main__":
-    while(CAM_AVAILABLE == 0):
+
+    while CAM_AVAILABLE == 0:
+
         fetch_stream_url()
+
         if CAM_AVAILABLE == 0:
+
             time.sleep(2)
-    
+
     process_video_stream()
