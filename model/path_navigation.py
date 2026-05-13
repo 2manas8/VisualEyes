@@ -3,7 +3,9 @@ import numpy as np
 from ultralytics import YOLO
 from collections import deque
 
-# ---------------- CONFIG ----------------
+# =====================================================
+# CONFIG
+# =====================================================
 
 MODEL_PATH = "yolov8n-seg.pt"
 
@@ -15,10 +17,16 @@ AREA_THRESHOLD = 8000
 # Very close obstacle threshold
 CLOSE_AREA_THRESHOLD = 45000
 
-# Center blockage threshold
+# Center blockage threshold for STOP
 CENTER_STOP_THRESHOLD = 15000
 
-# ---------------- OBSTACLE CLASSES ----------------
+# If center occupancy below this → GO STRAIGHT
+CENTER_OCCUPANCY_THRESHOLD = 0.25
+
+
+# =====================================================
+# OBSTACLE CLASSES
+# =====================================================
 
 OBSTACLE_CLASSES = [
     "person",
@@ -37,7 +45,9 @@ OBSTACLE_CLASSES = [
     "couch"
 ]
 
-# ---------------- OBJECT PRIORITY ----------------
+# =====================================================
+# OBJECT PRIORITY
+# =====================================================
 
 OBJECT_PRIORITY = {
 
@@ -62,11 +72,15 @@ OBJECT_PRIORITY = {
     "potted plant": 1
 }
 
-# ---------------- DIRECTION SMOOTHING ----------------
+# =====================================================
+# DIRECTION SMOOTHING
+# =====================================================
 
 direction_history = deque(maxlen=5)
 
-# ---------------- LOAD MODEL ----------------
+# =====================================================
+# LOAD MODEL
+# =====================================================
 
 print("Loading YOLOv8 Segmentation Model...")
 
@@ -74,7 +88,9 @@ model = YOLO(MODEL_PATH)
 
 print("Model loaded successfully.")
 
-# ---------------- MAIN NAVIGATION FUNCTION ----------------
+# =====================================================
+# MAIN NAVIGATION FUNCTION
+# =====================================================
 
 def process_navigation(frame):
 
@@ -82,13 +98,23 @@ def process_navigation(frame):
 
     h, w, _ = frame.shape
 
-    # Divide frame into 3 navigation regions
-    third = w // 3
+    # =================================================
+    # NAVIGATION REGIONS
+    # =================================================
 
-    # Analyze only lower walking region
+    # Narrow center corridor
+    center_width = int(w * 0.30)
+
+    center_start = (w - center_width) // 2
+    center_end = center_start + center_width
+
+    # Lower walking region
     BOTTOM_REGION_START = int(h * 0.6)
 
-    # Risk values
+    # =================================================
+    # RISKS
+    # =================================================
+
     left_risk = 0
     center_risk = 0
     right_risk = 0
@@ -96,7 +122,15 @@ def process_navigation(frame):
     close_object_detected = False
     very_close_center = False
 
-    # ---------------- MODEL PREDICTION ----------------
+    # Total center pixels
+    total_center_pixels = (
+        (h - BOTTOM_REGION_START)
+        * center_width
+    )
+
+    # =================================================
+    # MODEL PREDICTION
+    # =================================================
 
     results = model.predict(
         source=frame,
@@ -104,7 +138,9 @@ def process_navigation(frame):
         verbose=False
     )
 
-    # ---------------- PROCESS DETECTIONS ----------------
+    # =================================================
+    # PROCESS DETECTIONS
+    # =================================================
 
     if results[0].masks is not None:
 
@@ -121,8 +157,11 @@ def process_navigation(frame):
                 [x1, y1, x2, y2]
             )
 
-            box_width = x2 - x1
+            # =================================================
+            # OBJECT INFO
+            # =================================================
 
+            box_width = x2 - x1
             box_height = y2 - y1
 
             object_area = (
@@ -139,13 +178,15 @@ def process_navigation(frame):
                 results[0].boxes.conf[i]
             )
 
-            # ---------------- FILTER OBJECTS ----------------
+            # =================================================
+            # FILTER OBJECTS
+            # =================================================
 
             if class_name not in OBSTACLE_CLASSES:
 
                 continue
 
-            # Ignore very small/far objects
+            # Ignore tiny/far objects
             if object_area < AREA_THRESHOLD:
 
                 continue
@@ -154,13 +195,18 @@ def process_navigation(frame):
 
             close_object_detected = True
 
-            # Object priority
+            # =================================================
+            # OBJECT PRIORITY
+            # =================================================
+
             priority = OBJECT_PRIORITY.get(
                 class_name,
                 1
             )
 
-            # ---------------- DRAW BOUNDING BOX ----------------
+            # =================================================
+            # DRAW BOX
+            # =================================================
 
             label = (
                 f"{class_name} "
@@ -208,7 +254,9 @@ def process_navigation(frame):
                 2
             )
 
-            # ---------------- SEGMENTATION ANALYSIS ----------------
+            # =================================================
+            # SEGMENTATION ANALYSIS
+            # =================================================
 
             mask_resized = cv2.resize(
                 mask,
@@ -220,27 +268,39 @@ def process_navigation(frame):
                 BOTTOM_REGION_START:, :
             ]
 
-            # Split into left/center/right
-            left_region = bottom_mask[:, :third]
+            # =================================================
+            # SPLIT REGIONS
+            # =================================================
+
+            left_region = bottom_mask[
+                :,
+                :center_start
+            ]
 
             center_region = bottom_mask[
                 :,
-                third:2 * third
+                center_start:center_end
             ]
 
             right_region = bottom_mask[
                 :,
-                2 * third:
+                center_end:
             ]
 
-            # Count occupied pixels
+            # =================================================
+            # PIXEL OCCUPANCY
+            # =================================================
+
             left_pixels = np.sum(left_region)
 
             center_pixels = np.sum(center_region)
 
             right_pixels = np.sum(right_region)
 
-            # Weighted risks
+            # =================================================
+            # RISK CALCULATION
+            # =================================================
+
             left_risk += (
                 left_pixels * priority
             )
@@ -253,7 +313,9 @@ def process_navigation(frame):
                 right_pixels * priority
             )
 
-            # ---------------- EMERGENCY STOP ----------------
+            # =================================================
+            # STOP LOGIC
+            # =================================================
 
             if (
                 object_area > CLOSE_AREA_THRESHOLD
@@ -262,35 +324,58 @@ def process_navigation(frame):
 
                 very_close_center = True
 
-    # ---------------- DECISION LOGIC ----------------
+    # =================================================
+    # CENTER OCCUPANCY RATIO
+    # =================================================
 
-    # Center is more dangerous
-    center_risk *= 2
+        # Add these before the detection loop
+    raw_center_pixels = 0
+
+    # Inside the loop, after calculating center_pixels:
+    raw_center_pixels += center_pixels
+
+    # After the loop, calculate the true occupancy ratio:
+    true_center_occupancy = (
+        raw_center_pixels / total_center_pixels
+        if total_center_pixels > 0
+        else 0
+    )
+
+
+    # =================================================
+    # DECISION LOGIC
+    # =================================================
 
     if not close_object_detected:
 
         direction = "GO STRAIGHT"
 
-    elif very_close_center:
+    # elif very_close_center:
 
-        direction = "STOP"
+    #     direction = "STOP"
 
+    # Center mostly clear
+    elif (
+        true_center_occupancy
+        < CENTER_OCCUPANCY_THRESHOLD
+    ):
+
+        direction = "GO STRAIGHT"
+
+    # Center blocked → choose safer side
     else:
 
-        # Choose safer side
         if left_risk < right_risk:
 
             direction = "MOVE LEFT"
 
-        elif right_risk < left_risk:
+        else:
 
             direction = "MOVE RIGHT"
 
-        else:
-
-            direction = "GO STRAIGHT"
-
-    # ---------------- DIRECTION SMOOTHING ----------------
+    # =================================================
+    # DIRECTION SMOOTHING
+    # =================================================
 
     direction_history.append(direction)
 
@@ -299,33 +384,40 @@ def process_navigation(frame):
         key=direction_history.count
     )
 
-    # Remove duplicate object names
+    # Remove duplicates
     detected_objects = list(
         set(detected_objects)
     )
 
-    # ---------------- DEBUG PRINT ----------------
+    # =================================================
+    # DEBUG INFO
+    # =================================================
 
     print(
         f"Direction: {direction} | "
+        f"Center Occupancy: "
+        f"{true_center_occupancy:.2f} | "
         f"Objects: {detected_objects}"
     )
 
-    # ---------------- VISUALIZATION ----------------
+    # =================================================
+    # VISUALIZATION
+    # =================================================
 
-    # Left/Center/Right lines
+    # Left boundary
     cv2.line(
         frame,
-        (third, 0),
-        (third, h),
+        (center_start, 0),
+        (center_start, h),
         (255, 0, 0),
         2
     )
 
+    # Right boundary
     cv2.line(
         frame,
-        (2 * third, 0),
-        (2 * third, h),
+        (center_end, 0),
+        (center_end, h),
         (255, 0, 0),
         2
     )
@@ -339,7 +431,7 @@ def process_navigation(frame):
         2
     )
 
-    # Risk display
+    # Risks
     cv2.putText(
         frame,
         f"L:{int(left_risk)}",
@@ -352,7 +444,7 @@ def process_navigation(frame):
 
     cv2.putText(
         frame,
-        f"C:{int(center_risk)}",
+        f"C:{true_center_occupancy:.2f}",
         (50, 140),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -381,7 +473,9 @@ def process_navigation(frame):
         3
     )
 
-    # ---------------- RETURN ----------------
+    # =================================================
+    # RETURN
+    # =================================================
 
     return (
         frame,

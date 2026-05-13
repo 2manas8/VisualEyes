@@ -2,31 +2,94 @@ import os
 from gtts import gTTS
 
 coco_classes = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-    "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-    "hair drier", "toothbrush"
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
 ]
 
 
+system_phrases = ["no objects", "a lot of objects", "and", "detected"]
 
-system_phrases = [
-    "no objects",
-    "a lot of objects",
-    "and",
-    "detected",
-    "move left",
-    "move right",
-    "stop",
-    "go straight"
-]
+navigation = ["move left", "move right", "stop", "go straight"]
 
-all_inputs = coco_classes + system_phrases
+all_inputs = coco_classes + system_phrases + navigation
 
 save_dir = "../assets/audio"
 if not os.path.exists(save_dir):
@@ -35,16 +98,14 @@ if not os.path.exists(save_dir):
 print(f"Generating {len(all_inputs)} audio files in '{save_dir}'...")
 
 for phrase in all_inputs:
-    tts = gTTS(text=phrase, lang='en', slow=False)
+    tts = gTTS(text=phrase, lang="en", slow=False)
     filename = f"{phrase.replace(' ', '_')}.mp3"
     save_path = os.path.join(save_dir, filename)
     # Skip if file already exists
     if os.path.exists(save_path):
-
         print(f"Already exists: {filename}")
 
     else:
-
         # Generate and save
         tts.save(save_path)
 
