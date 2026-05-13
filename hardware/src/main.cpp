@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include "ultrasonic.h"
 
 extern String ssid;
 extern String pass;
@@ -12,12 +13,56 @@ extern void accessPointSetup();
 extern void startCameraServer();
 extern void setupLedFlash();
 extern void sendLocalIPToServer(String);
+extern void enableNavigation();
+extern void disableNavigation();
+
+namespace {
+constexpr uint8_t ultrasonicTriggerPin = 14;
+constexpr uint8_t ultrasonicEchoPin = 2;
+constexpr float obstacleDistanceCm = 100.0f;
+constexpr unsigned long ultrasonicPollIntervalMs = 1000;
+
+bool navigationEnabled = false;
+bool obstacleDetected = false;
+unsigned long lastUltrasonicPollMs = 0;
+
+void setNavigationEnabled(bool enabled) {
+  if (navigationEnabled == enabled) {
+    return;
+  }
+
+  if (enabled) {
+    enableNavigation();
+  } else {
+    disableNavigation();
+  }
+
+  navigationEnabled = enabled;
+}
+
+void handleObstacleNavigation() {
+  unsigned long now = millis();
+  if (now - lastUltrasonicPollMs < ultrasonicPollIntervalMs) {
+    return;
+  }
+  lastUltrasonicPollMs = now;
+
+  bool objectAhead = isObjectWithinDistanceCm(obstacleDistanceCm);
+  if (objectAhead == obstacleDetected) {
+    return;
+  }
+
+  obstacleDetected = objectAhead;
+  setNavigationEnabled(!obstacleDetected);
+}
+}
 
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
 
+  setupUltrasonicSensor(ultrasonicTriggerPin, ultrasonicEchoPin);
   accessPointSetup();
   
   unsigned long startTime = millis();
@@ -47,6 +92,7 @@ void setup() {
       startCameraServer();
 
       sendLocalIPToServer(WiFi.localIP().toString());
+      setNavigationEnabled(true);
     } else {
       Serial.println("WiFi failed - restarting...");
       ESP.restart();
@@ -56,7 +102,8 @@ void setup() {
 
 void loop() {
   if (credentialsReceived && WiFi.status() == WL_CONNECTED) {
-    delay(10000);
+    handleObstacleNavigation();
+    delay(10);
   } else {
     server.handleClient();
     delay(100);

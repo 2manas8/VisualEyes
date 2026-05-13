@@ -23,3 +23,47 @@ void sendLocalIPToServer(String localIP) {
     http.end();
   }
 }
+
+void enableNavigation() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    
+    http.begin("https://visualeyes.onrender.com/api/stream/navigation");
+    http.addHeader("Content-Type", "application/json");
+    
+    String jsonPayload = "{\"roomId\":\"1\", \"enableNavigation\":true}";
+    
+    int httpResponseCode = http.POST(jsonPayload);
+    
+    if (httpResponseCode == 200) {
+      String response = http.getString();
+      Serial.println("Server response: " + response);
+    } else {
+      Serial.println("Server POST failed: " + String(httpResponseCode));
+    }
+    
+    http.end();
+  }
+}
+
+void disableNavigation() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    
+    http.begin("https://visualeyes.onrender.com/api/stream/navigation");
+    http.addHeader("Content-Type", "application/json");
+    
+    String jsonPayload = "{\"roomId\":\"1\", \"enableNavigation\":false}";
+    
+    int httpResponseCode = http.POST(jsonPayload);
+    
+    if (httpResponseCode == 200) {
+      String response = http.getString();
+      Serial.println("Server response: " + response);
+    } else {
+      Serial.println("Server POST failed: " + String(httpResponseCode));
+    }
+    
+    http.end();
+  }
+}
