@@ -58,15 +58,21 @@ const roomSocket = (socket) => {
             }
         }).filter(data => data !== null)
         try {
-            Frame.create({
-                roomId: roomId,
-                frame: frame,
-                objects: objects
-            })
+            Frame.findOneAndUpdate(
+                {roomId: roomId},
+                {
+                    roomId: roomId,
+                    frame: frame,
+                    objects: objects,
+                    enableNavigation: data.enableNavigation
+                },
+                {upsert: true, new: true, setDefaultsOnInsert: true}
+            )
             socket.to(roomId).emit("receiveFrame", {
                 message: message,
                 frame: frame,
-                audio: audioData
+                audio: audioData,
+                enableNavigation: data.enableNavigation
             })
             console.log("Frame saved")
         } catch(error) {
