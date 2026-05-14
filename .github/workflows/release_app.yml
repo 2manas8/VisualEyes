@@ -39,5 +39,5 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "frontend/build/app/outputs/flutter-apk/app-release.apk"
-          tag: v1.0.${{ github.run_number }}
-          token: ${{ secrets.VISUALEYES_APP_TOKEN }}
+          tag: v2.0.1
+          token: ${{ secrets.GITHUB_TOKEN }}
