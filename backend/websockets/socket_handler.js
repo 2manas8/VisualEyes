@@ -1,7 +1,9 @@
 const socketIo = require("socket.io")
 
+let io;
+
 const socketHandler = (server) => {
-    const io = socketIo(server)
+    io = socketIo(server)
 
     io.on("connect", (socket) => {
         console.log("New node is connected")
@@ -13,3 +15,4 @@ const socketHandler = (server) => {
 }
 
 module.exports = socketHandler
+module.exports.getIO = () => io

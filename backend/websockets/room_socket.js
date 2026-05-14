@@ -67,14 +67,29 @@ const roomSocket = (socket) => {
             console.error("Error saving frame:", error)
         }
     })
-    // socket.on("sendIp", (data) => {
-    //     const roomId = data.roomId
-    //     const ip = data.ip
-    //     socket.to(roomId).emit("receiveIp", {
-    //         ip: ip
-    //     })
-    //     console.log("IP updated")
-    // })
+}
+
+const stop = (io, roomId) => {
+    const audioPath = path.join(__dirname, "../../assets/audio")
+    const audioPlaylist = ["stop.mp3"]
+    
+    const audioData = audioPlaylist.map(fileName => {
+        try {
+            const filePath = path.join(audioPath, fileName);
+            const fileBuffer = fs.readFileSync(filePath);
+            return fileBuffer.toString('base64');
+        } catch (err) {
+            console.error(`Error reading audio file ${fileName}:`, err.message);
+            return null; 
+        }
+    }).filter(data => data !== null)
+    
+    io.to(roomId).emit("stop", {
+        roomId: roomId,
+        audio: audioData
+    })
+    console.log("Stop audio signal sent to room " + roomId)
 }
 
 module.exports = roomSocket
+module.exports.stop = stop
