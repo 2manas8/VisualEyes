@@ -33,9 +33,18 @@ class HomePageState extends State<HomePage> {
     fetchFrame();
     Websocket.socketConnect();
     Websocket.joinRoom('1');
+    Websocket.stopNavigation(() {
+      player.player.stop();
+      if (AudioProviders.stopAudio.isNotEmpty) {
+        player.playAudioSequence(AudioProviders.stopAudio);
+      }
+    });
+    Websocket.startNavigation(() {
+      player.player.stop();
+    });
     Websocket.receiveFrame((newFrame) {
       if(NavigationProviders.currentNavigationBarIndex == 1) {
-        player.playAudioSequence(AudioProviders.audio);
+        player.playAudioSequence(AudioProviders.stopAudio.isNotEmpty ? AudioProviders.stopAudio : AudioProviders.audio);
         setState(() {
           frame = newFrame;
         });
@@ -76,6 +85,23 @@ class HomePageState extends State<HomePage> {
                 fetchFrame();
                 Websocket.socketConnect();
                 Websocket.joinRoom('1');
+                Websocket.stopNavigation(() {
+                  player.player.stop();
+                  if (AudioProviders.stopAudio.isNotEmpty) {
+                    player.playAudioSequence(AudioProviders.stopAudio);
+                  }
+                });
+                Websocket.startNavigation(() {
+                  player.player.stop();
+                });
+                Websocket.receiveFrame((newFrame) {
+                  if(NavigationProviders.currentNavigationBarIndex == 1) {
+                    player.playAudioSequence(AudioProviders.audio);
+                    setState(() {
+                      frame = newFrame;
+                    });
+                  }
+                });
               },
             )
             : DetectBody(frame: frame)
@@ -96,6 +122,15 @@ class HomePageState extends State<HomePage> {
     fetchFrame();
     Websocket.socketConnect();
     Websocket.joinRoom('1');
+    Websocket.stopNavigation(() {
+      player.player.stop();
+      if (AudioProviders.stopAudio.isNotEmpty) {
+        player.playAudioSequence(AudioProviders.stopAudio);
+      }
+    });
+    Websocket.startNavigation(() {
+      player.player.stop();
+    });
     Websocket.receiveFrame((newFrame) {
       if(NavigationProviders.currentNavigationBarIndex == 1) {
         player.playAudioSequence(AudioProviders.audio);

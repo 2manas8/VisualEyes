@@ -30,4 +30,20 @@ class Websocket {
       updateFrame(frame);
     });
   }
+
+  static void stopNavigation(Function() callback) {
+    socket.on('stop', (data) {
+      final dynamic jsonData = Map<String, dynamic>.from(data);
+      AudioProviders.stopAudio = jsonData['audio'];
+      callback();
+    });
+  }
+
+  static void startNavigation(Function() callback) {
+    socket.on('start', (data) {
+      final dynamic jsonData = Map<String, dynamic>.from(data);
+      AudioProviders.stopAudio = [];
+      callback();
+    });
+  }
 }
